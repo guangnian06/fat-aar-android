@@ -65,7 +65,7 @@ class VariantProcessor {
             throw new RuntimeException("Can not find task ${taskPath}!")
         }
         TaskProvider bundleTask = VersionAdapter.getBundleTaskProvider(mProject, mVariant.name)
-        preEmbed(artifacts, dependencies, prepareTask)
+//        preEmbed(artifacts, dependencies, prepareTask)
         processArtifacts(artifacts, prepareTask, bundleTask)
         processClassesAndJars(bundleTask)
         if (mAndroidArchiveLibraries.isEmpty()) {

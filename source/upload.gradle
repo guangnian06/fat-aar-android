@@ -12,17 +12,10 @@ task javadocJar(type: Jar) {
     archiveClassifier = 'javadoc'
 }
 
-
-File secretPropsFile = project.rootProject.file('local.properties')
-if (secretPropsFile.exists()) {
-    println "Found secret props file, loading props"
-    Properties p = new Properties()
-    p.load(new FileInputStream(secretPropsFile))
-    p.each { name, value ->
-        ext[name] = value
-    }
-} else {
-    println "No props file, loading env vars"
+Properties properties = new Properties()
+File localProperties = rootProject.file('local.properties')
+if (localProperties.exists()) {
+    localProperties.withInputStream { properties.load(it) }
 }
 
 publishing {
@@ -31,7 +24,7 @@ publishing {
             // The coordinates of the library, being set from variables that
             // we'll set up in a moment
             groupId PUBLISH_GROUP_ID
-            artifactId PUBLISH_ARTIFACT_ID
+            artifactId PUBLISH_GROUP_ID + ".gradle.plugin"
             version PUBLISH_VERSION
 
             artifact jar
@@ -40,7 +33,7 @@ publishing {
 
             // Self-explanatory metadata for the most part
             pom {
-                name = PUBLISH_ARTIFACT_ID
+                name = PUBLISH_GROUP_ID + ".gradle.plugin"
                 description = 'A gradle plugin that merge dependencies into the final aar file works with AGP 3.+'
                 // If your project has a dedicated site, use its URL here
                 url = 'https://github.com/kezong/fat-aar-android'
@@ -84,27 +77,15 @@ publishing {
             }
         }
     }
-//    repositories {
-        // The repository to publish to, Sonatype/MavenCentral
-//        maven {
-            // This is an arbitrary name, you may also use "mavencentral" or
-            // any other name that's descriptive for you
-//            name = "fat-aar"
-
-//            def releasesRepoUrl = "https://oss.sonatype.org/service/local/staging/deploy/maven2/"
-//            def snapshotsRepoUrl = "https://oss.sonatype.org/content/repositories/snapshots/"
-            // You only need this if you want to publish snapshots, otherwise just set the URL
-            // to the release repo directly
-//           url = version.endsWith('SNAPSHOT') ? snapshotsRepoUrl : releasesRepoUrl
-
-            // The username and password we've fetched earlier
-//            credentials {
-//                username ossrhUsername
-//                password ossrhPassword
-//            }
-//        }
-//    }
+    repositories {
+        maven {
+            url PUBLISH_VERSION.endsWith("-SNAPSHOT") ?
+                    properties["mavenSnapshotUrl"] : properties["mavenReleaseUrl"]
+            allowInsecureProtocol true
+            credentials {
+                username properties.getProperty("mavenUsername")
+                password properties.getProperty("mavenPassword")
+            }
+        }
+    }
 }
-//signing {
-//    sign publishing.publications
-//}

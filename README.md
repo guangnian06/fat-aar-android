@@ -10,27 +10,17 @@ The solution of merging aar works with [AGP][3] 8.5 and Gradle 8.7
 ## Getting Started
 
 ### Step 1: Add classpath
-#### Add snippet below to your root build script file:
-```groovy
-buildscript {
-    repositories {
-        maven {
-            setUrl("https://jitpack.io")
-            content {
-                includeGroup("com.github.aasitnikov")
-            }
-        }
-    }
-    dependencies {
-        classpath 'com.github.aasitnikov:fat-aar-android:1.4.1'
-    }
-}
+#### Add snippet below to your libs.versions.toml
+```toml
+kezong-fataar = { id = "com.kezong.fat-aar", version = "1.4.1-SNAPSHOT" }
 ```
 
 ### Step 2: Add plugin
 Add snippet below to the `build.gradle` of your main android library:
 ```groovy
-apply plugin: 'com.kezong.fat-aar'
+plugins {
+  alias libs.plugins.kezong.fataar
+}
 ```
 
 ### Step 3: Embed dependencies
