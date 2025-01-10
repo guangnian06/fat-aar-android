@@ -32,6 +32,11 @@ android {
         flavor3 {
         }
     }
+
+    compileOptions {
+        sourceCompatibility 17
+        targetCompatibility 17
+    }
 }
 
 dependencies {
