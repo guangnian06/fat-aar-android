@@ -25,4 +25,15 @@ class FatAarExtension {
      * @since 1.3.0
      */
     boolean transitive = false
+
+    /**
+     * Path mapping of shadow plugin
+     *
+     * Example:
+     * {
+     *   "com.shadow.before": "com.shadow.after",
+     *   "com.shadow.old": "com.shadow.new"
+     * }
+     */
+    Map<String, String> shadowPaths = new HashMap<>()
 }

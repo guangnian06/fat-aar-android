@@ -153,4 +153,13 @@ class VersionAdapter {
             return version.get(aClass)
         }
     }
+
+    File getClassesJarFile() {
+        if (FatUtils.compareVersion(AGPVersion, "8.3.0") >= 0) {
+            return mProject.file("${mProject.buildDir.path}/intermediates/aar_main_jar/${mVariant.name}/sync${mVariant.name.capitalize()}LibJars/classes.jar")
+        } else {
+            return mProject.file("${mProject.buildDir.path}/intermediates/aar_main_jar/${mVariant.name}/classes.jar")
+        }
+    }
+
 }
