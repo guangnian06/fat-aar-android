@@ -2,6 +2,7 @@ package com.kezong.fataar
 
 import com.android.build.gradle.api.LibraryVariant
 import com.android.build.gradle.tasks.ManifestProcessorTask
+import com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar
 import org.gradle.api.Project
 import org.gradle.api.Task
 import org.gradle.api.artifacts.ResolvedArtifact
@@ -459,9 +460,22 @@ class VariantProcessor {
             mustRunAfter(mMergeClassTask)
         }
 
+        TaskProvider shadowTask = createShadowClassJarTask(syncLibTask)
+        bundleTask.configure {
+            dependsOn(shadowTask)
+        }
+
         if (!isMinifyEnabled) {
             TaskProvider mergeJars = handleJarMergeTask(syncLibTask)
+            TaskProvider shadowJavaLibsTask = createShadowJavaLibsTask(syncLibTask)
+            shadowJavaLibsTask.configure {
+                dependsOn(mergeJars)
+            }
             bundleTask.configure {
+                dependsOn(mergeJars)
+                dependsOn(shadowJavaLibsTask)
+            }
+            shadowTask.configure {
                 dependsOn(mergeJars)
             }
         }
@@ -613,4 +627,99 @@ class VariantProcessor {
             }
         }
     }
+
+    private TaskProvider createShadowClassJarTask(final TaskProvider syncLibTask) {
+        TaskProvider task = mProject.tasks.register("shadowClassesJar" + mVariant.name.capitalize(), ShadowJar) {
+            dependsOn(mExplodeTasks)
+            dependsOn(mVersionAdapter.getJavaCompileTask())
+            mustRunAfter(syncLibTask)
+            doFirst {
+                def classesJar = mVersionAdapter.getClassesJarFile()
+                if (classesJar.exists()) {
+                    it.from(classesJar)
+                    mProject.fataar.shadowPaths.each { key, value ->
+                        FatUtils.logInfo("shadow path: key = " + key + ", value = " + value)
+                        it.relocate(key, value)
+                    }
+                } else {
+                    FatUtils.logError("Can not find classes.jar, check the file path of the classes.jar file based on the AGP version!")
+                }
+            }
+
+            outputs.upToDateWhen { false }
+
+            onlyIf { true }
+
+            doLast {
+                def outPutJar = outputs.files.first()
+                def origClassesJar = mVersionAdapter.getClassesJarFile()
+                if (origClassesJar.exists()) {
+                    origClassesJar.delete()
+                }
+                def classesJarDir = mVersionAdapter.getClassesJarFile().parentFile
+                if (!classesJarDir.exists()) {
+                    classesJarDir.mkdirs()
+                }
+                def targetFile = new File(classesJarDir, 'classes.jar')
+                outPutJar.withInputStream { input ->
+                    targetFile.withOutputStream { output ->
+                        output << input
+                    }
+                }
+                outPutJar.delete()
+                outPutJar.parentFile.deleteDir()
+            }
+        }
+        return task
+    }
+
+    private TaskProvider createShadowJavaLibsTask(final TaskProvider syncLibTask) {
+        TaskProvider task = mProject.tasks.register("shadowJavaLibs" + mVariant.name.capitalize(), ShadowJar) {
+            dependsOn(mExplodeTasks)
+            dependsOn(mVersionAdapter.getJavaCompileTask())
+            mustRunAfter(syncLibTask)
+
+            doFirst {
+                def javaLibsDir = mVersionAdapter.getLibsDirFile()
+                if (javaLibsDir.exists() && javaLibsDir.isDirectory()) {
+                    it.from(javaLibsDir.listFiles())
+                    mProject.fataar.shadowPaths.each { key, value ->
+                        it.relocate(key, value)
+                    }
+                }
+            }
+
+            outputs.upToDateWhen { false }
+
+            onlyIf { true }
+
+            doLast {
+                def outPutJar = outputs.files.first()
+
+                def javaLibsDir = mVersionAdapter.getLibsDirFile()
+                if (javaLibsDir.exists() && javaLibsDir.isDirectory()) {
+                    javaLibsDir.eachFile {
+                        if (it.isFile()) {
+                            it.delete()
+                        }
+                    }
+                } else {
+                    javaLibsDir.mkdirs()
+                }
+
+                def targetFile = new File(javaLibsDir, 'shadowedLibs.jar')
+                outPutJar.withInputStream { input ->
+                    targetFile.withOutputStream { output ->
+                        output << input
+                    }
+                }
+
+                outPutJar.delete()
+                outPutJar.parentFile.deleteDir()
+            }
+        }
+
+        return task
+    }
+
 }

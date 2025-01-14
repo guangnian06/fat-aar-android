@@ -77,6 +77,11 @@ fataar {
      * @since 1.3.0
      */
     transitive = true
+
+    shadowPaths = [
+            "com.kezong.demo.libaar2": "com.kezong.demo.libaar3",
+            "com.kezong.demo.javalib": "com.kezong.demo.javalib2"
+    ]
 }
 
 dependencies {
