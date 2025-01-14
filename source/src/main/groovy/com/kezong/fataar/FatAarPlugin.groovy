@@ -41,6 +41,8 @@ class FatAarPlugin implements Plugin<Project> {
 
     private FileResolver fileResolver
 
+    private FatAarExtension pluginExtension
+
     @Inject
     FatAarPlugin(CalculatedValueContainerFactory calculatedValueContainerFactory, TaskDependencyFactory taskDependencyFactory, FileResolver fileResolver) {
         this.calculatedValueContainerFactory = calculatedValueContainerFactory
@@ -54,9 +56,12 @@ class FatAarPlugin implements Plugin<Project> {
         checkAndroidPlugin()
         FatUtils.attach(project)
         DirectoryManager.attach(project)
-        project.extensions.create(FatAarExtension.NAME, FatAarExtension)
+        pluginExtension = project.extensions.create(FatAarExtension.NAME, FatAarExtension)
+
         createConfigurations()
         registerTransform()
+        AttrsProcessHelper.hookResourceProcess(project, pluginExtension)
+
         project.afterEvaluate {
             doAfterEvaluate()
         }
