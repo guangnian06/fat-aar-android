@@ -1,36 +1,44 @@
-plugins {
-    `maven-publish`
-    java
-    signing
-}
+import java.util.Properties
+import java.io.File
+import org.gradle.api.publish.PublishingExtension
+import org.gradle.api.publish.maven.MavenPublication
+import org.gradle.api.tasks.bundling.Jar
+import org.gradle.kotlin.dsl.*
+import org.gradle.api.component.SoftwareComponent
+import org.gradle.api.artifacts.Configuration
+import org.gradle.api.tasks.SourceSet
 
-val sourcesJar by tasks.creating(Jar::class) {
-    from(sourceSets["main"].allJava)
+val PUBLISH_GROUP_ID = "com.kezong"
+val PUBLISH_VERSION = "1.3.9"
+
+val sourcesJar by tasks.registering(Jar::class) {
     archiveClassifier.set("sources")
+    from("src/main/java", "src/main/groovy", "src/main/resources")
 }
 
-val javadocJar by tasks.creating(Jar::class) {
-    from(tasks["javadoc"])
+val javadocJar by tasks.registering(Jar::class) {
     archiveClassifier.set("javadoc")
+    from(tasks.named("javadoc"))
 }
 
 val properties = Properties().apply {
     val localProperties = rootProject.file("local.properties")
     if (localProperties.exists()) {
-        localProperties.inputStream().use { load(it) }
+        load(localProperties.inputStream())
     }
 }
 
-publishing {
+afterEvaluate {
+    configure<PublishingExtension> {
     publications {
-        create<MavenPublication>("release") {
+        register<MavenPublication>("release") {
             groupId = PUBLISH_GROUP_ID
             artifactId = "$PUBLISH_GROUP_ID.gradle.plugin"
             version = PUBLISH_VERSION
 
-            artifact(tasks["jar"])
-            artifact(sourcesJar)
-            artifact(javadocJar)
+            from(components["java"])
+            artifact(sourcesJar.get())
+            artifact(javadocJar.get())
 
             pom {
                 name.set("$PUBLISH_GROUP_ID.gradle.plugin")
@@ -57,40 +65,23 @@ publishing {
                     developerConnection.set("scm:git:ssh://github.com/kezong/fat-aar-android.git")
                     url.set("https://github.com/kezong/fat-aar-android/tree/master")
                 }
-
-                // Include transitive dependencies in POM
-                withXml {
-                    val dependenciesNode = asNode().appendNode("dependencies")
-
-                    project.configurations["implementation"].allDependencies.forEach { dependency ->
-                        if (dependency.group == "com.android.tools.build" && dependency.name == "gradle") {
-                            return@forEach
-                        }
-                        if (dependency.group == null) {
-                            return@forEach
-                        }
-                        val dependencyNode = dependenciesNode.appendNode("dependency")
-                        dependencyNode.appendNode("groupId", dependency.group)
-                        dependencyNode.appendNode("artifactId", dependency.name)
-                        dependencyNode.appendNode("version", dependency.version)
-                    }
-                }
             }
         }
     }
     
     repositories {
         maven {
-            url = uri(if (PUBLISH_VERSION.endsWith("-SNAPSHOT")) 
-                properties["mavenSnapshotUrl"].toString()
-            else 
-                properties["mavenReleaseUrl"].toString()
-            )
+            url = if (PUBLISH_VERSION.endsWith("-SNAPSHOT")) {
+                uri(properties["mavenSnapshotUrl"]?.toString() ?: "")
+            } else {
+                uri(properties["mavenReleaseUrl"]?.toString() ?: "")
+            }
             isAllowInsecureProtocol = true
             credentials {
-                username = properties.getProperty("mavenUsername")
-                password = properties.getProperty("mavenPassword")
+                username = properties["mavenUsername"]?.toString()
+                password = properties["mavenPassword"]?.toString()
             }
         }
+    }
     }
 }

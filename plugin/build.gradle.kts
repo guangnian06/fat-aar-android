@@ -1,7 +1,39 @@
 plugins {
     groovy
+    `java-library`
     `maven-publish`
     signing
+}
+
+java {
+    sourceCompatibility = JavaVersion.VERSION_11
+    targetCompatibility = JavaVersion.VERSION_11
+}
+
+tasks.withType<JavaCompile> {
+    options.encoding = "UTF-8"
+}
+
+tasks.withType<GroovyCompile> {
+    groovyOptions.encoding = "UTF-8"
+}
+
+tasks.withType<ProcessResources> {
+    duplicatesStrategy = DuplicatesStrategy.INCLUDE
+}
+
+sourceSets {
+    main {
+        java {
+            srcDirs("src/main/java")
+        }
+        groovy {
+            srcDirs("src/main/groovy")
+        }
+        resources {
+            srcDirs("src/main/resources")
+        }
+    }
 }
 
 apply(from = "./upload.gradle.kts")
