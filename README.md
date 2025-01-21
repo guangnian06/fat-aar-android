@@ -11,7 +11,7 @@ The solution of merging aar works with [AGP][3] 8.5 and Gradle 8.7
 ### Step 1: Add classpath
 #### Add snippet below to your libs.versions.toml
 ```toml
-kezong-fataar = { id = "com.kezong.fat-aar", version = "1.4.1-SNAPSHOT" }
+kezong-fataar = { id = "com.meituan.fat-aar", version = "1.4.1-SNAPSHOT" }
 ```
 
 ### Step 2: Add plugin
