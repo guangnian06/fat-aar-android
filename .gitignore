@@ -8,3 +8,9 @@ obj/
 *.iml
 Gemfile.lock
 _site/
+bin/
+
+# Eclipse project files
+.project
+.classpath
+.settings/
