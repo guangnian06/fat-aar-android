@@ -101,7 +101,28 @@ public class AndroidArchiveLibrary {
         return new File(getRootFolder(), "lint.jar");
     }
 
+    public List<File> getProguardRulesFiles() {
+        List<File> rules = new ArrayList<>();
+        File consumerRules = new File(getRootFolder(), "consumer-rules.pro");
+        if (consumerRules.exists()) {
+            rules.add(consumerRules);
+        }
+        File proguardTxt = new File(getRootFolder(), "proguard.txt");
+        if (proguardTxt.exists()) {
+            rules.add(proguardTxt);
+        }
+        return rules;
+    }
+
+    /**
+     * @deprecated Use {@link #getProguardRulesFiles()} instead
+     */
+    @Deprecated
     public File getProguardRules() {
+        File consumerRules = new File(getRootFolder(), "consumer-rules.pro");
+        if (consumerRules.exists()) {
+            return consumerRules;
+        }
         return new File(getRootFolder(), "proguard.txt");
     }
 

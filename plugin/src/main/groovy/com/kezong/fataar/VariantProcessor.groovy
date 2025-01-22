@@ -573,7 +573,10 @@ class VariantProcessor {
             dependsOn(mExplodeTasks)
             doLast {
                 try {
-                    Collection<File> files = mAndroidArchiveLibraries.stream().map { it.proguardRules }.collect()
+                    Collection<File> files = new ArrayList<>()
+                    mAndroidArchiveLibraries.each { library ->
+                        files.addAll(library.proguardRulesFiles)
+                    }
                     File of
                     if (outputFile instanceof File) {
                         of = outputFile
@@ -609,7 +612,10 @@ class VariantProcessor {
             dependsOn(mExplodeTasks)
             doLast {
                 try {
-                    Collection<File> files = mAndroidArchiveLibraries.stream().map { it.proguardRules }.collect()
+                    Collection<File> files = new ArrayList<>()
+                    mAndroidArchiveLibraries.each { library ->
+                        files.addAll(library.proguardRulesFiles)
+                    }
                     File of
                     if (outputFile instanceof File) {
                         of = outputFile

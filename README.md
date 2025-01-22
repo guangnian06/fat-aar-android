@@ -232,6 +232,7 @@ The following link which version of Gradle is required for each version of the A
   - Adding `android.disableResourceValidation=true` to `gradle.properties` can do a trick to skip the exception.
   
 - **Proguard**
+  - The plugin supports both `proguard.txt` and `consumer-rules.pro` files from AAR dependencies. If both files exist in an AAR, they will be merged in the final output.
   - If `minifyEnabled` is set to true, classes not referenced in the project will be filtered according to Proguard rules during compile, resulting in ClassNotFound during app compile.
    Most AAR is SDK that provide interfaces. It is recommended that you carefully comb Proguard files and add keep rules.
 
