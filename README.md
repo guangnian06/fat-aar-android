@@ -50,6 +50,39 @@ dependencies {
 }
 ```
 
+### Configuration Options
+
+The plugin provides several configuration options that can be set in your `build.gradle`:
+
+```groovy
+fataar {
+    // If true, use bytecode patching for R file merging (Plan A)
+    // If false, generate sub-module R classes (Plan B)
+    // Default: true
+    transformR = true
+
+    // If true, embed transitive dependencies for jar modules and remote libraries
+    // Note: Local AAR modules do not support transitive embedding
+    // Default: false
+    transitive = false
+
+    // Path mapping for shadow plugin to relocate packages
+    // Example:
+    // shadowPaths = [
+    //   "com.old.package": "com.new.package"
+    // ]
+    shadowPaths = [:]
+
+    // Paths to exclude from declare-style attribute format conflicts
+    // Example: ["example:lib-aar:unspecified"]
+    excludeDeclareStyleAttrsFormatPath = []
+
+    // Mapping of declare-style attributes to exclude from format conflicts
+    // Key: declare-style name, Value: attr name
+    excludeDeclareStyleAttrsFormat = [:]
+}
+```
+
 ### Transitive
 
 #### Local Dependency
@@ -105,7 +138,7 @@ See [anatomy of an aar file here][2].
 ## Gradle Version Support
 |     Version     | Android Gradle Plugin |  Gradle   |
 |:---------------:|:---------------------:|:---------:|
-|      1.4.1      |          8.5          |    8.7    |
+|      1.4.1      |          8.3          |    8.7    |
 |      1.4.0      |          8.3          |    8.6    |
 |      1.3.8      |        3.0.0+         |   4.9+    |
 |      1.3.6      |     3.0.0 - 4.2.0     |   4.9+    |
@@ -227,9 +260,11 @@ The following link which version of Gradle is required for each version of the A
 - **Application cannot directly rely on embedded project：** application cannot directly rely on your embedded project. It must rely on the AAR file compiled by your embedded project
   - For debugging convenience, you can use `embed` in the main library project when you choose to package aar. When you need to run the app directly, you can use `implementation` or `api`
 
-- **Res merge conflicts.** If the library res folder and embedded dependencies res have the same res Id(mostly `string/app_name`). A duplicate resources build exception will be thrown. To avoid res conflicts:
-  - consider using a prefix to each res Id, both in library res and aar dependencies if possible. 
-  - Adding `android.disableResourceValidation=true` to `gradle.properties` can do a trick to skip the exception.
+- **Resource conflicts resolution:** The plugin provides two ways to handle resource conflicts:
+  1. Use `excludeDeclareStyleAttrsFormat` to selectively remove format attributes
+  2. Add `android.disableResourceValidation=true` to `gradle.properties`
+  
+  Additionally, consider using a prefix for each res Id in both library res and aar dependencies if possible.
   
 - **Proguard**
   - If `minifyEnabled` is set to true, classes not referenced in the project will be filtered according to Proguard rules during compile, resulting in ClassNotFound during app compile.
