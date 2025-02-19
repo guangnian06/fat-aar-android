@@ -60,7 +60,6 @@ class FatAarPlugin implements Plugin<Project> {
 
         createConfigurations()
         registerTransform()
-        AttrsProcessHelper.hookResourceProcess(project, pluginExtension)
 
         project.afterEvaluate {
             doAfterEvaluate()
