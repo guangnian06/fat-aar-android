@@ -37,27 +37,5 @@ class FatAarExtension {
      */
     Map<String, String> shadowPaths = new HashMap<>()
 
-    /**
-     * 需要删除declare-style属性的format键值对, 包名前缀，用于优化匹配性能，为空则全量匹配
-     * group:modulename:version
-     *
-     * 比如：此demo中为
-     * group：example
-     * modulename：lib-aar、lib-aar2
-     * version：1.0.0，没有默认 unspecified
-     *
-     * 示例错误： [attr/exampleTextColor] /Users/xxx/github/fat-aar-android/example/lib-main/build/intermediates/exploded-aar/example/lib-aar/unspecified/flavor2Debug/res/values/values.xml
-     * [attr/exampleTextColor] /Users/xxx/github/fat-aar-android/example/lib-main/build/intermediates/exploded-aar/example/lib-aar2/unspecified/flavor2Debug/res/values/values.xml:
-     * Error: Duplicate resources
-     *
-     * 则只需要配置 [example:lib-aar:unspecified] 和 [example:lib-aar2:unspecified]
-     */
-    public HashSet<String> excludeDeclareStyleAttrsFormatPath = new HashSet<>()
 
-    /**
-     * 需要删除declare-style属性的format键值对
-     * key: declare-style name
-     * value: attr name
-     */
-    public HashMap<String, String> excludeDeclareStyleAttrsFormat = new HashMap<>()
 }
