@@ -34,6 +34,20 @@ class ResourceModifier {
             def enums2 = attr2.elements("enum")
             def flags2 = attr2.elements("flag")
 
+            // Check for format mixing with enum/flag
+            String format1 = attr1.attributeValue("format")
+            String format2 = attr2.attributeValue("format")
+            if ((enums1.size() > 0 || flags1.size() > 0) && format1) {
+                return new ValidationResult(false,
+                    "Attribute '${attr1.attributeValue('name')}' cannot mix enum/flag with other formats:\n" +
+                    "Definition: ${attr1.asXML()}")
+            }
+            if ((enums2.size() > 0 || flags2.size() > 0) && format2) {
+                return new ValidationResult(false,
+                    "Attribute '${attr1.attributeValue('name')}' cannot mix enum/flag with other formats:\n" +
+                    "Definition: ${attr2.asXML()}")
+            }
+
             // Check for enum vs flag mismatch
             if ((enums1.size() > 0 && flags2.size() > 0) || (flags1.size() > 0 && enums2.size() > 0)) {
                 return new ValidationResult(false, 
@@ -110,7 +124,12 @@ class ResourceModifier {
             if (format) {
                 format.split("\\|").each { f -> def.formats.add(f.trim()) }
             }
-            if (attr.elements("enum").size() > 0) {
+            if (attr.elements("enum").size() > 0 || attr.elements("flag").size() > 0) {
+                if (!def.formats.isEmpty()) {
+                    throw new RuntimeException(
+                        "Attribute '${attrName}' cannot mix enum/flag with other formats:\n" +
+                        "Definition: ${attr.asXML()}")
+                }
                 def.enumDefinition = attr
             }
             attrDefinitions.put(attrName, def)
@@ -126,6 +145,12 @@ class ResourceModifier {
                 
                 String format = attr.attributeValue("format")
                 if (format) {
+                    if (def.enumDefinition) {
+                        throw new RuntimeException(
+                            "Attribute '${attrName}' cannot mix enum/flag with other formats:\n" +
+                            "Definition with enum/flag: ${def.enumDefinition.asXML()}\n" +
+                            "Attempted to merge with format: ${format}")
+                    }
                     format.split("\\|").each { f -> def.formats.add(f.trim()) }
                 }
                 // Validate enum/flag definitions before merging
@@ -151,6 +176,12 @@ class ResourceModifier {
                     // Merge formats with existing
                     String existingFormat = rootAttr.attributeValue("format")
                     if (existingFormat) {
+                        if (def.enumDefinition) {
+                            throw new RuntimeException(
+                                "Attribute '${attrName}' cannot mix enum/flag with other formats:\n" +
+                                "Definition with enum/flag: ${def.enumDefinition.asXML()}\n" +
+                                "Attempted to merge with format: ${existingFormat}")
+                        }
                         existingFormat.split("\\|").each { f -> def.formats.add(f.trim()) }
                     }
                 } else {
@@ -160,6 +191,12 @@ class ResourceModifier {
 
                 // Set merged format if any
                 if (!def.formats.isEmpty()) {
+                    if (rootAttr.elements("enum").size() > 0 || rootAttr.elements("flag").size() > 0) {
+                        throw new RuntimeException(
+                            "Attribute '${attrName}' cannot mix enum/flag with other formats:\n" +
+                            "Definition with enum/flag: ${rootAttr.asXML()}\n" +
+                            "Attempted to merge with formats: ${def.formats.join('|')}")
+                    }
                     rootAttr.addAttribute("format", def.formats.join("|"))
                 }
 
