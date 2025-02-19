@@ -498,6 +498,10 @@ class VariantProcessor {
             dependsOn(mExplodeTasks)
         }
 
+        // Add resource processing
+        ResourceProcessor processor = new ResourceProcessor(mProject, mVariant)
+        processor.processResources()
+
         for (archiveLibrary in mAndroidArchiveLibraries) {
             FatUtils.logInfo("Merge resource，Library res：${archiveLibrary.resFolder}")
             mVariant.registerGeneratedResFolders(
