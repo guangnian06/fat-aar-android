@@ -34,6 +34,20 @@ class ResourceModifier {
             def enums2 = attr2.elements("enum")
             def flags2 = attr2.elements("flag")
 
+            // Check for format mixing with enum/flag
+            String format1 = attr1.attributeValue("format")
+            String format2 = attr2.attributeValue("format")
+            if ((enums1.size() > 0 || flags1.size() > 0) && format1) {
+                return new ValidationResult(false,
+                    "Attribute '${attr1.attributeValue('name')}' cannot mix enum/flag with other formats:\n" +
+                    "Definition: ${attr1.asXML()}")
+            }
+            if ((enums2.size() > 0 || flags2.size() > 0) && format2) {
+                return new ValidationResult(false,
+                    "Attribute '${attr1.attributeValue('name')}' cannot mix enum/flag with other formats:\n" +
+                    "Definition: ${attr2.asXML()}")
+            }
+
             // Check for enum vs flag mismatch
             if ((enums1.size() > 0 && flags2.size() > 0) || (flags1.size() > 0 && enums2.size() > 0)) {
                 return new ValidationResult(false, 
