@@ -17,6 +17,12 @@ class ResourceModifier {
         mVariant = variant
     }
 
+    private static class AttrDefinition {
+        Set<String> formats = new HashSet<>()
+        Element enumDefinition
+        int occurrences = 0
+    }
+
     void processValuesXml(File valuesXml) {
         if (!valuesXml.exists()) {
             return
@@ -26,31 +32,72 @@ class ResourceModifier {
         Document document = reader.read(valuesXml)
         Element root = document.getRootElement()
 
-        // Collect all attr definitions
-        Map<String, Element> attrDefinitions = new HashMap<>()
+        // Track all attr definitions and their formats
+        Map<String, AttrDefinition> attrDefinitions = new HashMap<>()
+
+        // First collect existing root attrs
+        root.elements("attr").each { attr ->
+            String attrName = attr.attributeValue("name")
+            AttrDefinition def = new AttrDefinition()
+            String format = attr.attributeValue("format")
+            if (format) {
+                format.split("\\|").each { f -> def.formats.add(f.trim()) }
+            }
+            if (attr.elements("enum").size() > 0) {
+                def.enumDefinition = attr
+            }
+            attrDefinitions.put(attrName, def)
+        }
+
+        // Collect attrs from declare-styleable and count occurrences
         List<Element> styleableElements = root.elements("declare-styleable")
-        
-        // First pass: collect all attr definitions
         styleableElements.each { styleable ->
             styleable.elements("attr").each { attr ->
                 String attrName = attr.attributeValue("name")
-                if (!attrDefinitions.containsKey(attrName)) {
-                    attrDefinitions.put(attrName, attr.createCopy())
+                AttrDefinition def = attrDefinitions.computeIfAbsent(attrName, { k -> new AttrDefinition() })
+                def.occurrences++
+                
+                String format = attr.attributeValue("format")
+                if (format) {
+                    format.split("\\|").each { f -> def.formats.add(f.trim()) }
+                }
+                if (attr.elements("enum").size() > 0 && !def.enumDefinition) {
+                    def.enumDefinition = attr
                 }
             }
         }
 
-        // Second pass: move attrs to root and update references
-        attrDefinitions.values().each { attr ->
-            root.add(attr)
-        }
+        // Move only duplicate attrs to root level with merged formats
+        attrDefinitions.each { attrName, def ->
+            if (def.occurrences > 1) {
+                // Create or update root attr
+                Element rootAttr
+                List<Element> existingAttrs = root.elements("attr").findAll { it.attributeValue("name") == attrName }
+                if (existingAttrs.size() > 0) {
+                    rootAttr = existingAttrs.first()
+                    // Merge formats with existing
+                    String existingFormat = rootAttr.attributeValue("format")
+                    if (existingFormat) {
+                        existingFormat.split("\\|").each { f -> def.formats.add(f.trim()) }
+                    }
+                } else {
+                    rootAttr = def.enumDefinition ? def.enumDefinition.createCopy() : root.addElement("attr")
+                    rootAttr.addAttribute("name", attrName)
+                }
 
-        styleableElements.each { styleable ->
-            styleable.elements("attr").each { attr ->
-                String attrName = attr.attributeValue("name")
-                // Remove format attribute and other child elements
-                attr.clearContent()
-                attr.attributes().removeIf { it.name != "name" }
+                // Set merged format if any
+                if (!def.formats.isEmpty()) {
+                    rootAttr.addAttribute("format", def.formats.join("|"))
+                }
+
+                // Update declare-styleable references
+                styleableElements.each { styleable ->
+                    styleable.elements("attr").findAll { it.attributeValue("name") == attrName }.each { attr ->
+                        // Remove format and enum definitions, keeping only the name reference
+                        attr.clearContent()
+                        attr.attributes().removeIf { it.name != "name" }
+                    }
+                }
             }
         }
 
