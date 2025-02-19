@@ -17,6 +17,73 @@ class ResourceModifier {
         mVariant = variant
     }
 
+    private static class EnumFlagValidator {
+        static class ValidationResult {
+            boolean isValid
+            String error
+
+            ValidationResult(boolean isValid, String error = null) {
+                this.isValid = isValid
+                this.error = error
+            }
+        }
+
+        static ValidationResult validate(Element attr1, Element attr2) {
+            def enums1 = attr1.elements("enum")
+            def flags1 = attr1.elements("flag")
+            def enums2 = attr2.elements("enum")
+            def flags2 = attr2.elements("flag")
+
+            // Check for enum vs flag mismatch
+            if ((enums1.size() > 0 && flags2.size() > 0) || (flags1.size() > 0 && enums2.size() > 0)) {
+                return new ValidationResult(false, 
+                    "Attribute '${attr1.attributeValue('name')}' has conflicting definitions:\n" +
+                    "First definition: ${attr1.asXML()}\n" +
+                    "Second definition: ${attr2.asXML()}\n" +
+                    "Cannot mix enum and flag definitions")
+            }
+
+            // Compare enum/flag elements
+            if (enums1.size() > 0 && enums2.size() > 0) {
+                if (enums1.size() != enums2.size()) {
+                    return new ValidationResult(false,
+                        "Attribute '${attr1.attributeValue('name')}' has different number of enum elements:\n" +
+                        "First definition: ${attr1.asXML()}\n" +
+                        "Second definition: ${attr2.asXML()}")
+                }
+                
+                def enumMap1 = enums1.collectEntries { [(it.attributeValue("name")): it.attributeValue("value")] }
+                def enumMap2 = enums2.collectEntries { [(it.attributeValue("name")): it.attributeValue("value")] }
+                if (enumMap1 != enumMap2) {
+                    return new ValidationResult(false,
+                        "Attribute '${attr1.attributeValue('name')}' has different enum definitions:\n" +
+                        "First definition: ${attr1.asXML()}\n" +
+                        "Second definition: ${attr2.asXML()}")
+                }
+            }
+
+            if (flags1.size() > 0 && flags2.size() > 0) {
+                if (flags1.size() != flags2.size()) {
+                    return new ValidationResult(false,
+                        "Attribute '${attr1.attributeValue('name')}' has different number of flag elements:\n" +
+                        "First definition: ${attr1.asXML()}\n" +
+                        "Second definition: ${attr2.asXML()}")
+                }
+                
+                def flagMap1 = flags1.collectEntries { [(it.attributeValue("name")): it.attributeValue("value")] }
+                def flagMap2 = flags2.collectEntries { [(it.attributeValue("name")): it.attributeValue("value")] }
+                if (flagMap1 != flagMap2) {
+                    return new ValidationResult(false,
+                        "Attribute '${attr1.attributeValue('name')}' has different flag definitions:\n" +
+                        "First definition: ${attr1.asXML()}\n" +
+                        "Second definition: ${attr2.asXML()}")
+                }
+            }
+
+            return new ValidationResult(true)
+        }
+    }
+
     private static class AttrDefinition {
         Set<String> formats = new HashSet<>()
         Element enumDefinition
@@ -61,7 +128,13 @@ class ResourceModifier {
                 if (format) {
                     format.split("\\|").each { f -> def.formats.add(f.trim()) }
                 }
-                if (attr.elements("enum").size() > 0 && !def.enumDefinition) {
+                // Validate enum/flag definitions before merging
+                if (def.enumDefinition && attr.elements().size() > 0) {
+                    def result = EnumFlagValidator.validate(def.enumDefinition, attr)
+                    if (!result.isValid) {
+                        throw new RuntimeException(result.error)
+                    }
+                } else if (attr.elements().size() > 0) {
                     def.enumDefinition = attr
                 }
             }
