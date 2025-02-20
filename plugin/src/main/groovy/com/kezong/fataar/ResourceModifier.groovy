@@ -101,7 +101,52 @@ class ResourceModifier {
     private static class AttrDefinition {
         Set<String> formats = new HashSet<>()
         Element enumDefinition
+        boolean isReference = false
         int occurrences = 0
+        Element firstDefinition = null
+        
+        boolean isEnumOrFlag() {
+            return enumDefinition != null && 
+                   (enumDefinition.elements("enum").size() > 0 || 
+                    enumDefinition.elements("flag").size() > 0)
+        }
+    }
+
+    private void processAttrDefinition(Element attr, AttrDefinition attrDef) {
+        String format = attr.attributeValue("format")
+        if (format) {
+            format.split("\\|").each { f -> attrDef.formats.add(f.trim()) }
+        }
+        
+        if (attr.elements("enum").size() > 0 || attr.elements("flag").size() > 0) {
+            if (!attrDef.formats.isEmpty()) {
+                throw new RuntimeException(
+                    "Attribute '${attr.attributeValue('name')}' cannot mix enum/flag with other formats:\n" +
+                    "Definition: ${attr.asXML()}")
+            }
+            attrDef.enumDefinition = attr
+        }
+        
+        if (attrDef.firstDefinition == null) {
+            attrDef.firstDefinition = attr
+        }
+    }
+
+    private void validateAndMergeDefinition(Element attr, AttrDefinition attrDef) {
+        if (attrDef.isReference) {
+            throw new RuntimeException(
+                "Attribute '${attr.attributeValue('name')}' cannot be both reference and definition"
+            )
+        }
+        
+        if (attrDef.enumDefinition != null && attr.elements().size() > 0) {
+            def result = EnumFlagValidator.validate(attrDef.enumDefinition, attr)
+            if (!result.isValid) {
+                throw new RuntimeException(result.error)
+            }
+        } else {
+            processAttrDefinition(attr, attrDef)
+        }
     }
 
     void processValuesXml(File valuesXml) {
@@ -120,22 +165,28 @@ class ResourceModifier {
         root.elements("attr").each { attr ->
             String attrName = attr.attributeValue("name")
             AttrDefinition attrDef = new AttrDefinition()
-            String format = attr.attributeValue("format")
-            if (format) {
-                format.split("\\|").each { f -> attrDef.formats.add(f.trim()) }
-            }
-            if (attr.elements("enum").size() > 0 || attr.elements("flag").size() > 0) {
-                if (!attrDef.formats.isEmpty()) {
-                    throw new RuntimeException(
-                        "Attribute '${attrName}' cannot mix enum/flag with other formats:\n" +
-                        "Definition: ${attr.asXML()}")
+            
+            // Check if it's a reference or definition
+            if (attr.attributes().size() == 1 && attr.elements().size() == 0) {
+                attrDef.isReference = true
+            } else {
+                String format = attr.attributeValue("format")
+                if (format) {
+                    format.split("\\|").each { f -> attrDef.formats.add(f.trim()) }
                 }
-                attrDef.enumDefinition = attr
+                if (attr.elements("enum").size() > 0 || attr.elements("flag").size() > 0) {
+                    if (!attrDef.formats.isEmpty()) {
+                        throw new RuntimeException(
+                            "Attribute '${attrName}' cannot mix enum/flag with other formats:\n" +
+                            "Definition: ${attr.asXML()}")
+                    }
+                    attrDef.enumDefinition = attr
+                }
             }
             attrDefinitions.put(attrName, attrDef)
         }
 
-        // Collect attrs from declare-styleable and count occurrences
+        // Process declare-styleable attrs
         List<Element> styleableElements = root.elements("declare-styleable")
         styleableElements.each { styleable ->
             styleable.elements("attr").each { attr ->
@@ -143,24 +194,27 @@ class ResourceModifier {
                 AttrDefinition attrDef = attrDefinitions.computeIfAbsent(attrName, { k -> new AttrDefinition() })
                 attrDef.occurrences++
                 
-                String format = attr.attributeValue("format")
-                if (format) {
-                    if (attrDef.enumDefinition) {
-                        throw new RuntimeException(
-                            "Attribute '${attrName}' cannot mix enum/flag with other formats:\n" +
-                            "Definition with enum/flag: ${attrDef.enumDefinition.asXML()}\n" +
-                            "Attempted to merge with format: ${format}")
+                // Only process if it's a definition
+                if (attr.attributes().size() > 1 || attr.elements().size() > 0) {
+                    String format = attr.attributeValue("format")
+                    if (format) {
+                        if (attrDef.enumDefinition) {
+                            throw new RuntimeException(
+                                "Attribute '${attrName}' cannot mix enum/flag with other formats:\n" +
+                                "Definition with enum/flag: ${attrDef.enumDefinition.asXML()}\n" +
+                                "Attempted to merge with format: ${format}")
+                        }
+                        format.split("\\|").each { f -> attrDef.formats.add(f.trim()) }
                     }
-                    format.split("\\|").each { f -> attrDef.formats.add(f.trim()) }
-                }
-                // Validate enum/flag definitions before merging
-                if (attrDef.enumDefinition && attr.elements().size() > 0) {
-                    def result = EnumFlagValidator.validate(attrDef.enumDefinition, attr)
-                    if (!result.isValid) {
-                        throw new RuntimeException(result.error)
+                    // Validate enum/flag definitions before merging
+                    if (attrDef.enumDefinition && attr.elements().size() > 0) {
+                        def result = EnumFlagValidator.validate(attrDef.enumDefinition, attr)
+                        if (!result.isValid) {
+                            throw new RuntimeException(result.error)
+                        }
+                    } else if (attr.elements().size() > 0) {
+                        attrDef.enumDefinition = attr
                     }
-                } else if (attr.elements().size() > 0) {
-                    attrDef.enumDefinition = attr
                 }
             }
         }
@@ -200,12 +254,14 @@ class ResourceModifier {
                     rootAttr.addAttribute("format", attrDef.formats.join("|"))
                 }
 
-                // Update declare-styleable references
+                // Update declare-styleable references to point to root definition
                 styleableElements.each { styleable ->
                     styleable.elements("attr").findAll { it.attributeValue("name") == attrName }.each { attr ->
-                        // Remove format and enum definitions, keeping only the name reference
-                        attr.clearContent()
-                        attr.attributes().removeIf { it.name != "name" }
+                        // Keep the first definition as-is, make others references
+                        if (attr != attrDef.firstDefinition) {
+                            attr.clearContent()
+                            attr.attributes().removeIf { it.name != "name" }
+                        }
                     }
                 }
             }
