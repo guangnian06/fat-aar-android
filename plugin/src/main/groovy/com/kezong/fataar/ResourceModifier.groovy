@@ -235,22 +235,39 @@ class ResourceModifier {
                 return
             }
 
-            // Check if definition is in root by checking parent of first element
+            // Get first definition
             Element firstDef = attrDef.getDefinition()
-            if (firstDef != null && firstDef.parent().name != "declare-styleable") {
+            if (firstDef == null) {
+                return
+            }
+
+            // Check if any definition is in root
+            boolean hasRootDef = false
+            attrDef.declareStyleableElements.each { attr ->
+                if (attr.parent().name != "declare-styleable") {
+                    hasRootDef = true
+                }
+            }
+
+            if (hasRootDef) {
                 // Root definition exists, just update references
                 attrDef.declareStyleableElements.each { attr ->
-                    attr.clearContent()
-                    attr.attributes().removeIf { it.name != "name" }
+                    if (attr.parent().name == "declare-styleable") {
+                        attr.clearContent()
+                        attr.attributes().removeIf { it.name != "name" }
+                    }
                 }
-            } else {
-                // Create root attr from first definition
-                Element rootAttr = firstDef.createCopy()
-                rootAttr.addAttribute("name", attrName)
-                root.add(rootAttr)
+                return
+            }
+            
+            // Create root attr from first definition
+            Element rootAttr = firstDef.createCopy()
+            rootAttr.addAttribute("name", attrName)
+            root.add(rootAttr)
 
-                // Update all references using collected elements
-                attrDef.declareStyleableElements.each { attr ->
+            // Update all references in declare-styleable elements
+            attrDef.declareStyleableElements.each { attr ->
+                if (attr.parent().name == "declare-styleable") {
                     attr.clearContent()
                     attr.attributes().removeIf { it.name != "name" }
                 }
