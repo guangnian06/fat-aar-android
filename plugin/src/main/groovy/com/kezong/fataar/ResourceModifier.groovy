@@ -112,15 +112,18 @@ class ResourceModifier {
 
     private static class AttrDefinition {
         Set<String> formats = new HashSet<>()
-        Element enumDefinition
         int occurrences = 0
-        Element firstDefinition = null
         List<Element> declareStyleableElements = new ArrayList<>()
         
+        Element getDefinition() {
+            return declareStyleableElements.isEmpty() ? null : declareStyleableElements.first()
+        }
+        
         boolean isEnumOrFlag() {
-            return enumDefinition != null && 
-                   (enumDefinition.elements("enum").size() > 0 || 
-                    enumDefinition.elements("flag").size() > 0)
+            Element def = getDefinition()
+            return def != null && 
+                   (def.elements("enum").size() > 0 || 
+                    def.elements("flag").size() > 0)
         }
     }
 
@@ -150,16 +153,6 @@ class ResourceModifier {
             
             // Add formats after validation
             format.split("\\|").each { f -> attrDef.formats.add(f.trim()) }
-        }
-        
-        // Store enum/flag definition
-        if (enums.size() > 0 || flags.size() > 0) {
-            attrDef.enumDefinition = attr
-        }
-        
-        // Track first definition
-        if (attrDef.firstDefinition == null) {
-            attrDef.firstDefinition = attr
         }
         
         // Add to declare-styleable elements if not already tracked
@@ -212,9 +205,10 @@ class ResourceModifier {
                 }
                 
                 // Process definition
-                if (attrDef.enumDefinition != null && attr.elements().size() > 0) {
+                Element existingDef = attrDef.getDefinition()
+                if (existingDef != null && attr.elements().size() > 0) {
                     // Validate enum/flag definitions match
-                    def result = EnumFlagValidator.validate(attrDef.enumDefinition, attr)
+                    def result = EnumFlagValidator.validate(existingDef, attr)
                     if (!result.isValid) {
                         throw new RuntimeException(result.error)
                     }
@@ -234,23 +228,21 @@ class ResourceModifier {
                 return
             }
 
-            // Check if all definitions are in declare-styleable
-            List<Element> rootAttrs = root.elements("attr").findAll { it.attributeValue("name") == attrName }
-            if (rootAttrs.isEmpty()) {
-                // Create root attr from first definition
-                Element rootAttr = attrDef.enumDefinition ? 
-                    attrDef.enumDefinition.createCopy() : 
-                    attrDef.firstDefinition.createCopy()
-                rootAttr.addAttribute("name", attrName)
-                root.add(rootAttr)
-
-                // Update all references using collected elements
+            // Check if definition is in root by checking parent of first element
+            Element firstDef = attrDef.getDefinition()
+            if (firstDef != null && firstDef.parent().name != "declare-styleable") {
+                // Root definition exists, just update references
                 attrDef.declareStyleableElements.each { attr ->
                     attr.clearContent()
                     attr.attributes().removeIf { it.name != "name" }
                 }
             } else {
-                // Root definition exists, just update references
+                // Create root attr from first definition
+                Element rootAttr = firstDef.createCopy()
+                rootAttr.addAttribute("name", attrName)
+                root.add(rootAttr)
+
+                // Update all references using collected elements
                 attrDef.declareStyleableElements.each { attr ->
                     attr.clearContent()
                     attr.attributes().removeIf { it.name != "name" }
