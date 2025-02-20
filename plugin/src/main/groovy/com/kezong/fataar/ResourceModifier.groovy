@@ -130,11 +130,20 @@ class ResourceModifier {
             format.split("\\|").each { f -> attrDef.formats.add(f.trim()) }
         }
         
-        if (attr.elements("enum").size() > 0 || attr.elements("flag").size() > 0) {
-            if (!attrDef.formats.isEmpty()) {
-                throw new RuntimeException(
-                    "Attribute '${attr.attributeValue('name')}' cannot mix enum/flag with other formats:\n" +
-                    "Definition: ${attr.asXML()}")
+        def enums = attr.elements("enum")
+        def flags = attr.elements("flag")
+        if (enums.size() > 0 || flags.size() > 0) {
+            if (format) {
+                if (enums.size() > 0 && !format.equals("enum")) {
+                    throw new RuntimeException(
+                        "Attribute '${attr.attributeValue('name')}' with enum children must have format='enum' or no format:\n" +
+                        "Definition: ${attr.asXML()}")
+                }
+                if (flags.size() > 0 && !format.equals("flags")) {
+                    throw new RuntimeException(
+                        "Attribute '${attr.attributeValue('name')}' with flag children must have format='flags' or no format:\n" +
+                        "Definition: ${attr.asXML()}")
+                }
             }
             attrDef.enumDefinition = attr
         }
