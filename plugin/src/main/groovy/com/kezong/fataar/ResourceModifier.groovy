@@ -191,95 +191,69 @@ class ResourceModifier {
         // Track all attr definitions and their formats
         Map<String, AttrDefinition> attrDefinitions = new HashMap<>()
 
-        // First collect existing root attrs
+        // Process root attrs first
         root.elements("attr").each { attr ->
             String attrName = attr.attributeValue("name")
             AttrDefinition attrDef = new AttrDefinition()
-            
-            // Process root attr definition
-            if (attr.attributes().size() > 1 || attr.elements().size() > 0) {
-                String format = attr.attributeValue("format")
-                if (format) {
-                    format.split("\\|").each { f -> attrDef.formats.add(f.trim()) }
-                }
-                if (attr.elements("enum").size() > 0 || attr.elements("flag").size() > 0) {
-                    if (!attrDef.formats.isEmpty()) {
-                        throw new RuntimeException(
-                            "Attribute '${attrName}' cannot mix enum/flag with other formats:\n" +
-                            "Definition: ${attr.asXML()}")
-                    }
-                    attrDef.enumDefinition = attr
-                }
-            }
+            processAttrDefinition(attr, attrDef)
             attrDefinitions.put(attrName, attrDef)
         }
 
-        // Process declare-styleable attrs
-        List<Element> styleableElements = root.elements("declare-styleable")
-        styleableElements.each { styleable ->
+        // Process declare-styleable attrs in single pass
+        root.elements("declare-styleable").each { styleable ->
             styleable.elements("attr").each { attr ->
                 String attrName = attr.attributeValue("name")
                 AttrDefinition attrDef = attrDefinitions.computeIfAbsent(attrName, { k -> new AttrDefinition() })
-                attrDef.occurrences++
                 
-                // Only process if it's a definition
-                if (attr.attributes().size() > 1 || attr.elements().size() > 0) {
-                    String format = attr.attributeValue("format")
-                    if (format) {
-                        if (attrDef.enumDefinition) {
-                            throw new RuntimeException(
-                                "Attribute '${attrName}' cannot mix enum/flag with other formats:\n" +
-                                "Definition with enum/flag: ${attrDef.enumDefinition.asXML()}\n" +
-                                "Attempted to merge with format: ${format}")
-                        }
-                        format.split("\\|").each { f -> attrDef.formats.add(f.trim()) }
-                    }
-                    // Validate enum/flag definitions before merging
-                    if (attrDef.enumDefinition && attr.elements().size() > 0) {
-                        def result = EnumFlagValidator.validate(attrDef.enumDefinition, attr)
-                        if (!result.isValid) {
-                            throw new RuntimeException(result.error)
-                        }
-                    } else if (attr.elements().size() > 0) {
-                        attrDef.enumDefinition = attr
-                    }
+                // Skip reference-only attrs
+                if (attr.attributes().size() == 1 && attr.elements().size() == 0) {
+                    attrDef.occurrences++
+                    return
                 }
+                
+                // Process definition
+                if (attrDef.enumDefinition != null && attr.elements().size() > 0) {
+                    // Validate enum/flag definitions match
+                    def result = EnumFlagValidator.validate(attrDef.enumDefinition, attr)
+                    if (!result.isValid) {
+                        throw new RuntimeException(result.error)
+                    }
+                } else {
+                    processAttrDefinition(attr, attrDef)
+                }
+                
+                attrDef.occurrences++
+                attrDef.declareStyleableElements.add(attr)
             }
         }
 
         // Move duplicate attrs to root level if they're all in declare-styleable
         attrDefinitions.each { attrName, attrDef ->
-            if (attrDef.occurrences > 1) {
-                // Check if all definitions are in declare-styleable
-                List<Element> rootAttrs = root.elements("attr").findAll { it.attributeValue("name") == attrName }
-                if (rootAttrs.isEmpty()) {
-                    // Create root attr from first definition
-                    Element rootAttr = attrDef.enumDefinition ? 
-                        attrDef.enumDefinition.createCopy() : 
-                        attrDef.firstDefinition.createCopy()
-                    rootAttr.addAttribute("name", attrName)
-                    root.add(rootAttr)
+            // Skip if not a duplicate
+            if (attrDef.occurrences <= 1) {
+                return
+            }
 
-                    // Update all declare-styleable references
-                    styleableElements.each { styleable ->
-                        styleable.elements("attr").findAll { 
-                            it.attributeValue("name") == attrName 
-                        }.each { attr ->
-                            attr.clearContent()
-                            attr.attributes().removeIf { it.name != "name" }
-                        }
-                    }
-                } else {
-                    // Root definition exists, just update references
-                    Element rootAttr = rootAttrs.first()
-                    styleableElements.each { styleable ->
-                        styleable.elements("attr").findAll { 
-                            it.attributeValue("name") == attrName 
-                        }.each { attr ->
-                            attr.clearContent()
-                            attr.attributes().removeIf { it.name != "name" }
-                        }
-                    }
+            // Check if all definitions are in declare-styleable
+            List<Element> rootAttrs = root.elements("attr").findAll { it.attributeValue("name") == attrName }
+            if (rootAttrs.isEmpty()) {
+                // Create root attr from first definition
+                Element rootAttr = attrDef.enumDefinition ? 
+                    attrDef.enumDefinition.createCopy() : 
+                    attrDef.firstDefinition.createCopy()
+                rootAttr.addAttribute("name", attrName)
+                root.add(rootAttr)
+
+                // Update all references using collected elements
+                attrDef.declareStyleableElements.each { attr ->
+                    attr.clearContent()
+                    attr.attributes().removeIf { it.name != "name" }
+                }
+            } else {
+                // Root definition exists, just update references
+                attrDef.declareStyleableElements.each { attr ->
+                    attr.clearContent()
+                    attr.attributes().removeIf { it.name != "name" }
                 }
             }
         }
