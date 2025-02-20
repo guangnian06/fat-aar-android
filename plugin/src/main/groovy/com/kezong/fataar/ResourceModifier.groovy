@@ -121,9 +121,16 @@ class ResourceModifier {
         
         boolean isEnumOrFlag() {
             Element def = getDefinition()
-            return def != null && 
-                   (def.elements("enum").size() > 0 || 
-                    def.elements("flag").size() > 0)
+            return def != null && hasEnumOrFlagChildren(def)
+        }
+        
+        boolean isInRoot() {
+            Element def = getDefinition()
+            return def != null && def.parent().name != "declare-styleable"
+        }
+        
+        private boolean hasEnumOrFlagChildren(Element element) {
+            return element.elements("enum").size() > 0 || element.elements("flag").size() > 0
         }
     }
 
@@ -136,14 +143,14 @@ class ResourceModifier {
         if (format) {
             // Check for enum/flags format compatibility
             if (enums.size() > 0) {
-                // Allow format="enum", but prevent mixing with other formats
+                // Only validate format if it's not "enum"
                 if (!format.equals("enum")) {
                     throw new RuntimeException(
                         "Attribute '${attr.attributeValue('name')}' with enum children must have format='enum' or no format:\n" +
                         "Definition: ${attr.asXML()}")
                 }
             } else if (flags.size() > 0) {
-                // Allow format="flags", but prevent mixing with other formats
+                // Only validate format if it's not "flags"
                 if (!format.equals("flags")) {
                     throw new RuntimeException(
                         "Attribute '${attr.attributeValue('name')}' with flag children must have format='flags' or no format:\n" +
