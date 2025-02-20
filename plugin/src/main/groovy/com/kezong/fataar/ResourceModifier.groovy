@@ -102,6 +102,98 @@ class ResourceModifier {
         Set<String> formats = new HashSet<>()
         Element enumDefinition
         int occurrences = 0
+        boolean inRoot = false
+        Element firstDeclareStyleableDefinition = null
+        
+        boolean hasEnumChildren() {
+            return enumDefinition != null && enumDefinition.elements("enum").size() > 0
+        }
+        
+        boolean hasFlagChildren() {
+            return enumDefinition != null && enumDefinition.elements("flag").size() > 0
+        }
+        
+        boolean hasValidFormat() {
+            // Always allow no format (implicit)
+            if (formats.isEmpty()) {
+                return true
+            }
+            // Allow matching formats
+            if (hasEnumChildren() && formats.contains("enum")) {
+                return true
+            }
+            if (hasFlagChildren() && formats.contains("flags")) {
+                return true
+            }
+            // Prevent mixing enum/flag with other formats
+            if (hasEnumChildren() || hasFlagChildren()) {
+                return false
+            }
+            return true
+        }
+    }
+
+    private void processAttrDefinition(Element attr, AttrDefinition attrDef) {
+        String format = attr.attributeValue("format")
+        if (format) {
+            format.split("\\|").each { f -> attrDef.formats.add(f.trim()) }
+        }
+        if (attr.elements("enum").size() > 0 || attr.elements("flag").size() > 0) {
+            attrDef.enumDefinition = attr
+        }
+    }
+
+    private void moveToRootIfNeeded(Element root, Map<String, AttrDefinition> attrDefinitions) {
+        attrDefinitions.each { attrName, attrDef ->
+            if (attrDef.shouldMoveToRoot()) {
+                // Create or update root attr
+                Element rootAttr = attrDef.enumDefinition ? 
+                    attrDef.enumDefinition.createCopy() : 
+                    root.addElement("attr")
+                rootAttr.addAttribute("name", attrName)
+                
+                // Set merged formats
+                if (!attrDef.formats.isEmpty()) {
+                    rootAttr.addAttribute("format", attrDef.formats.join("|"))
+                }
+                
+                // Update references
+                root.elements("declare-styleable").each { styleable ->
+                    styleable.elements("attr").findAll { 
+                        it.attributeValue("name") == attrName 
+                    }.each { attr ->
+                        if (attr != attrDef.firstDeclareStyleableDefinition) {
+                            attr.clearContent()
+                            attr.attributes().removeIf { it.name != "name" }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private void validateAndMergeDefinition(Element attr, AttrDefinition attrDef) {
+        String format = attr.attributeValue("format")
+        if (format) {
+            format.split("\\|").each { f -> attrDef.formats.add(f.trim()) }
+        }
+        
+        if (!attrDef.hasValidFormat()) {
+            throw new RuntimeException(
+                "Invalid format for attribute '${attr.attributeValue('name')}'"
+            )
+        }
+        
+        if (attr.elements("enum").size() > 0 || attr.elements("flag").size() > 0) {
+            if (attrDef.enumDefinition) {
+                def result = EnumFlagValidator.validate(attrDef.enumDefinition, attr)
+                if (!result.isValid) {
+                    throw new RuntimeException(result.error)
+                }
+            } else {
+                attrDef.enumDefinition = attr
+            }
+        }
     }
 
     void processValuesXml(File valuesXml) {
@@ -113,57 +205,42 @@ class ResourceModifier {
         Document document = reader.read(valuesXml)
         Element root = document.getRootElement()
 
-        // Track all attr definitions and their formats
+        // First pass: collect all attr definitions
         Map<String, AttrDefinition> attrDefinitions = new HashMap<>()
-
-        // First collect existing root attrs
+        
+        // Process root attrs first
         root.elements("attr").each { attr ->
             String attrName = attr.attributeValue("name")
             AttrDefinition attrDef = new AttrDefinition()
-            String format = attr.attributeValue("format")
-            if (format) {
-                format.split("\\|").each { f -> attrDef.formats.add(f.trim()) }
-            }
-            if (attr.elements("enum").size() > 0 || attr.elements("flag").size() > 0) {
-                if (!attrDef.formats.isEmpty()) {
-                    throw new RuntimeException(
-                        "Attribute '${attrName}' cannot mix enum/flag with other formats:\n" +
-                        "Definition: ${attr.asXML()}")
-                }
-                attrDef.enumDefinition = attr
-            }
+            attrDef.inRoot = true
+            processAttrDefinition(attr, attrDef)
             attrDefinitions.put(attrName, attrDef)
         }
-
-        // Collect attrs from declare-styleable and count occurrences
-        List<Element> styleableElements = root.elements("declare-styleable")
-        styleableElements.each { styleable ->
+        
+        // Process declare-styleable attrs
+        root.elements("declare-styleable").each { styleable ->
             styleable.elements("attr").each { attr ->
                 String attrName = attr.attributeValue("name")
-                AttrDefinition attrDef = attrDefinitions.computeIfAbsent(attrName, { k -> new AttrDefinition() })
+                AttrDefinition attrDef = attrDefinitions.computeIfAbsent(
+                    attrName, { k -> new AttrDefinition() }
+                )
                 attrDef.occurrences++
-                
-                String format = attr.attributeValue("format")
-                if (format) {
-                    if (attrDef.enumDefinition) {
-                        throw new RuntimeException(
-                            "Attribute '${attrName}' cannot mix enum/flag with other formats:\n" +
-                            "Definition with enum/flag: ${attrDef.enumDefinition.asXML()}\n" +
-                            "Attempted to merge with format: ${format}")
-                    }
-                    format.split("\\|").each { f -> attrDef.formats.add(f.trim()) }
+                if (!attrDef.inRoot && !attrDef.firstDeclareStyleableDefinition) {
+                    attrDef.firstDeclareStyleableDefinition = attr
                 }
-                // Validate enum/flag definitions before merging
-                if (attrDef.enumDefinition && attr.elements().size() > 0) {
-                    def result = EnumFlagValidator.validate(attrDef.enumDefinition, attr)
-                    if (!result.isValid) {
-                        throw new RuntimeException(result.error)
-                    }
-                } else if (attr.elements().size() > 0) {
-                    attrDef.enumDefinition = attr
-                }
+                validateAndMergeDefinition(attr, attrDef)
             }
         }
+
+        // Move only duplicate attrs to root level with merged formats
+        moveToRootIfNeeded(root, attrDefinitions)
+
+        // Write back the modified XML
+        OutputFormat format = OutputFormat.createPrettyPrint()
+        XMLWriter writer = new XMLWriter(new FileWriter(valuesXml), format)
+        writer.write(document)
+        writer.close()
+    }
 
         // Move only duplicate attrs to root level with merged formats
         attrDefinitions.each { attrName, attrDef ->
