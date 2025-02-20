@@ -262,10 +262,17 @@ class ResourceModifier {
             
             // Create root attr from first definition
             Element rootAttr = firstDef.createCopy()
-            // Don't update name since it should already exist
+            
+            // Update format attribute with merged formats if any exist
+            String existingFormat = rootAttr.attributeValue("format")
             if (!attrDef.formats.isEmpty()) {
+                // Remove existing format if any
+                if (existingFormat != null) {
+                    rootAttr.remove(rootAttr.attribute("format"))
+                }
                 rootAttr.addAttribute("format", attrDef.formats.join("|"))
             }
+            
             root.add(rootAttr)
 
             // Update all references in declare-styleable elements
