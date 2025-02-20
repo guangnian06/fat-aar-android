@@ -15,6 +15,7 @@ class ResourceProcessor {
     }
 
     void processResources() {
+        String packageTaskName = "package${mVariant.name.capitalize()}Resources"
         String taskPath = "process${mVariant.name.capitalize()}Resources"
         TaskProvider resourceTask = mProject.tasks.register(taskPath) {
             it.doLast {
@@ -30,10 +31,9 @@ class ResourceProcessor {
         }
 
         // Hook into resource generation task
-        String genTaskPath = "generate${mVariant.name.capitalize()}Resources"
-        TaskProvider resourceGenTask = mProject.tasks.named(genTaskPath)
-        if (resourceGenTask != null) {
-            resourceGenTask.configure {
+        TaskProvider resourcePackageTask = mProject.tasks.named(packageTaskName)
+        if (resourcePackageTask != null) {
+            resourcePackageTask.configure {
                 finalizedBy(resourceTask)
             }
         }
