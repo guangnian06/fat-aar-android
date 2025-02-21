@@ -1,9 +1,8 @@
 package com.kezong.fataar
 
-import org.gradle.api.Project
-import org.gradle.api.Task
-import org.gradle.api.tasks.TaskProvider
 import com.android.build.gradle.api.LibraryVariant
+import org.gradle.api.Project
+import org.gradle.api.tasks.TaskProvider
 
 class ResourceProcessor {
     private final Project mProject
@@ -19,12 +18,18 @@ class ResourceProcessor {
         String taskPath = "process${mVariant.name.capitalize()}Resources"
         TaskProvider resourceTask = mProject.tasks.register(taskPath) {
             it.doLast {
-                File mergedDir = new File(mProject.buildDir, "intermediates/incremental/${mVariant.name}/merged.dir/values")
-                if (mergedDir.exists()) {
-                    File valuesXml = new File(mergedDir, "values.xml")
-                    if (valuesXml.exists()) {
-                        ResourceModifier modifier = new ResourceModifier(mProject, mVariant)
-                        modifier.processValuesXml(valuesXml)
+                File packagedResDir = new File(mProject.buildDir, "intermediates/packaged_res/${mVariant.name}/$packageTaskName")
+                FatUtils.logInfo("Processing resources in dir: ${packagedResDir} ${packagedResDir.exists()}")
+                if (packagedResDir.exists()) {
+                    for (File resDir : packagedResDir.listFiles()) {
+                        if (resDir.isDirectory() && resDir.name.startsWith("values")) {
+                            for (File valuesXml : resDir.listFiles()) {
+                                if (valuesXml.exists()) {
+                                    FatUtils.logInfo("Processing resources xml file: ${valuesXml}")
+                                    ResourceModifier.processValuesXml(valuesXml)
+                                }
+                            }
+                        }
                     }
                 }
             }
