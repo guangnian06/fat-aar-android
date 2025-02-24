@@ -2,83 +2,72 @@
 
 [![license](https://img.shields.io/badge/license-MIT-blue.svg)](https://github.com/aasitnikov/fat-aar-android/blob/master/LICENSE)
 
-This fork adds support for AGP 8.0+
+This fork adds support for AGP 8.0+, and supports shadowing merged classes.
 
 The solution of merging aar works with [AGP][3] 8.5 and Gradle 8.7
 
 ## Getting Started
 
-### Step 1: Add classpath
-#### Add snippet below to your libs.versions.toml
+### Step 1: Declare the plugin
+Add snippet below to your libs.versions.toml
 ```toml
-kezong-fataar = { id = "com.meituan.fat-aar", version = "1.4.1-SNAPSHOT" }
+ponyets-fataar = { id = "io.github.ponyets.fataar", version = "1.5.1" }
 ```
 
-### Step 2: Add plugin
+### Step 2: Add the plugin
 Add snippet below to the `build.gradle` of your main android library:
-```groovy
+```kotlin
 plugins {
-  alias libs.plugins.kezong.fataar
+  alias libs.plugins.ponyets.fataar
 }
 ```
 
 ### Step 3: Embed dependencies
 
-Declare `embed` for the dependencies you want to merge in `build.gradle`. 
+Declare `embed` configuration for the dependencies you want to merge into your AAR. 
 
-The usage is similar to `implementation`, like this:
+The `embed` configuration works similarly to `implementation`, but the dependency will be merged into your library rather than becoming a transitive dependency. Example usage:
 
-```groovy
+```kotlin
 dependencies {
-    implementation fileTree(dir: 'libs', include: '*.jar')
-    // java dependency
-    embed project(path: ':lib-java', configuration: 'default')
-    // aar dependency
-    embed project(path: ':lib-aar', configuration: 'default')
-    // aar dependency
-    embed project(path: ':lib-aar2', configuration: 'default')
-    // local full aar dependency, just build in flavor1
-    flavor1Embed project(path: ':lib-aar-local', configuration: 'default')
-    // local full aar dependency, just build in debug
-    debugEmbed(name: 'lib-aar-local2', ext: 'aar')
-    // remote jar dependency
-    embed 'com.google.guava:guava:20.0'
-    // remote aar dependency
-    embed 'com.facebook.fresco:fresco:1.12.0'
-    // don't want to embed in
-    implementation('androidx.appcompat:appcompat:1.2.0')
+    // For example, to merge okhttp into your library
+    embed("com.squareup.okhttp3:okhttp:4.12.0")
 }
 ```
 
-### Transitive
-
-#### Local Dependency
-If you want to include local transitive dependencies in final artifact, you must add `embed` for transitive dependencies in your main library. 
-
-For example, mainLib depend on subLib1, subLib1 depend on subLib2, If you want include all dependencies in the final artifact, you must add `embed` for subLib1 and subLib2 in mainLib `build.gradle`
-
-#### Remote Dependency
-If you want to inlcude all of the remote transitive dependencies which are in POM file, you need change the `transitive` value to true in your `build.gradle`, like this:
-```groovy
+## Transitive
+To also merge transitive dependencies, set `transitive` to true in your `build.gradle`:
+```kotlin
 fataar {
-    /**
-     * If transitive is true, local jar module and remote library's dependencies will be embed. (local aar module does not support)
-     * If transitive is false, just embed first level dependency
-     * Default value is false
-     * @since 1.3.0
-     */
     transitive = true
 }
-```
-If you change the transitive value to true,and want to ignore a dependency in its POM file, you can add exclude keywords, like this:
-```groovy
-embed('com.facebook.fresco:fresco:1.11.0') {
-    // exclude all dependencies
-    transitive = false
-    // exclude any group or module
-    exclude(group:'com.facebook.soloader', module:'soloader')
+
+dependencies {
+    // To ignore specific dependencies when transitive is true, use exclude:
+    embed("com.squareup.okhttp3:okhttp:4.12.0") {
+        // To not merge okio which is a dependency of okhttp
+        exclude(group:'com.squareup.okio', module:'okio')
+    }
+    // Since okio is excluded from merging, we need to declare it as a normal implementation dependency
+    // This ensures your library's users know they need okio as a dependency
+    implementation("com.squareup.okio:okio:3.10.2")
 }
 ```
+
+## Shadow Merged Classes
+To specify which classes should be shadow merged, use the `shadowPaths` property:
+```kotlin
+fataar {
+    shadowPaths = mapOf(
+      // shadow all classes in com.squareup.okhttp3, so your users can use a different version of okhttp
+      "com.squareup.okhttp3" to "shadowed.com.squareup.okhttp3"
+    )
+}
+```
+Classes and references will be moved from the original package to the new package during shadowing.
+
+When building a library, you should shadow merged dependencies to prevent conflicts if your users are using the same dependencies in their projects.
+
 
 ## About AAR File
 
@@ -105,6 +94,7 @@ See [anatomy of an aar file here][2].
 ## Gradle Version Support
 |     Version     | Android Gradle Plugin |  Gradle   |
 |:---------------:|:---------------------:|:---------:|
+|      1.5.1      |          8.7.3        |    8.12   |
 |      1.4.1      |          8.5          |    8.7    |
 |      1.4.0      |          8.3          |    8.6    |
 |      1.3.8      |        3.0.0+         |   4.9+    |
@@ -127,6 +117,9 @@ The following link which version of Gradle is required for each version of the A
 [Plugin version and Required Gradle version](https://developer.android.com/build/releases/gradle-plugin)
 
 ## Version Log
+- [1.5.1](<https://github.com/guangnian06/fat-aar-android/releases/tag/1.5.1>)
+  - Support AGP 8.7.3
+  - Support shadowing merged classes
 - [1.4.1](<https://github.com/aasitnikov/fat-aar-android/releases/tag/1.4.1>)
   - Support AGP 8.5
 - [1.4.0](<https://github.com/aasitnikov/fat-aar-android/releases/tag/1.4.0>)

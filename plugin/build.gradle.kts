@@ -66,7 +66,7 @@ dependencies {
 }
 
 group = "io.github.ponyets.fataar"
-version = "1.5.0"
+version = "1.5.1"
 
 val sourcesJar by tasks.registering(Jar::class) {
     archiveClassifier.set("sources")
@@ -135,11 +135,6 @@ jreleaser {
     signing {
         active = Active.ALWAYS
         armored = true
-    }
-    release {
-        github {
-            skipRelease = true
-        }
     }
     deploy {
         maven {
